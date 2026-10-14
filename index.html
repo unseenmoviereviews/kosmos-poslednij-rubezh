@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бортовой журнал TOS</title>
+<meta name="description" content="Тепловая карта рейтингов IMDb всех 79 серий оригинального «Звёздного пути» (1966–1969) и карта связей персонажей. Неофициальный некоммерческий фан-проект.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500&family=Exo+2:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{
+  --room:#141618; --room2:#1d2023;
+  --shell:#d9531a; --shell-hi:#ff8a4c; --shell-lo:#8f2c08;
+  --cream:#ebe5d7; --cream-hi:#f8f4ea; --cream-lo:#c9c0ac;
+  --face:#202428; --face2:#2a2f34; --face3:#353b41; --line:#3d444b;
+  --ink:#ebe5d7; --dim:#9aa1a7; --engrave:#4a4f54;
+  --gold:#f2a51c; --amber:#f2a51c; --orange:#e2571c; --red:#d2362b; --green:#45b562; --blue:#5b8fd1; --teal:#4fd1a5;
+  --phos:#a9f0c4; --crt:#0c231c; --crt2:#16392d;
+  --r:30px;
+}
+*{box-sizing:border-box}
+html{background:#1a1612}
+html,body{margin:0}
+body{
+  color:var(--ink); font:15px/1.5 "Exo 2",system-ui,sans-serif; overflow-x:hidden;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, #5a3a1c55, transparent 60%),
+    radial-gradient(900px 700px at 0% 0%, #2b333a, transparent 70%),
+    linear-gradient(180deg,var(--room2),var(--room) 60%, #241a12);
+  min-height:100vh;
+}
+.wrap{max-width:1320px;margin:0 auto;padding:16px}
+h1,h2,h3{font-family:"Unbounded",sans-serif;font-weight:500;letter-spacing:.03em;text-transform:uppercase;margin:0}
+.mono{font-family:"JetBrains Mono",monospace}
+
+/* ===== корпус-шапка: оранжевый глянец ===== */
+header.top{
+  position:relative;overflow:hidden;border-radius:44px;padding:18px;
+  background:
+    radial-gradient(140% 120% at 22% 0%, var(--shell-hi) 0%, var(--shell) 32%, #b9410f 70%, var(--shell-lo) 100%);
+  box-shadow:0 30px 60px -20px #000c, inset 0 2px 0 #ffffff55, inset 0 -10px 30px #0006;
+  display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:18px;align-items:center;
+}
+header.top::before{ /* блик */
+  content:"";position:absolute;left:6%;top:6px;width:46%;height:46%;border-radius:50%;
+  background:radial-gradient(closest-side,#ffffff38,transparent);filter:blur(4px);pointer-events:none
+}
+.faceplate{
+  position:relative;background:linear-gradient(180deg,#2a2f34,#1b1f22);border-radius:34px;padding:20px 22px 18px;
+  box-shadow:inset 0 2px 0 #ffffff12, inset 0 -3px 0 #0008, 0 2px 0 #0004;border:3px solid #15181b
+}
+.console{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.lamp{width:14px;height:14px;border-radius:50%;box-shadow:0 0 10px currentColor, inset 0 -3px 4px #0007, inset 0 2px 2px #fff6;animation:blink 2.4s infinite steps(1)}
+.lamp:nth-child(3n){animation-duration:1.7s}.lamp:nth-child(4n){animation-duration:3.1s}.lamp:nth-child(5n){animation-delay:.7s}
+@keyframes blink{0%,60%{opacity:1}61%,100%{opacity:.3}}
+.bar{flex:1;min-width:60px;height:22px;border-radius:6px;background:#0c0f10;border:1px solid #000;
+  box-shadow:inset 0 2px 4px #000;position:relative;overflow:hidden}
+.bar::after{content:"";position:absolute;inset:4px;border-radius:3px;
+  background:repeating-linear-gradient(90deg,var(--amber) 0 3px,transparent 3px 6px);opacity:.85;
+  -webkit-mask:linear-gradient(90deg,#000 0 62%,#0003 62%);mask:linear-gradient(90deg,#000 0 62%,#0003 62%)}
+.engr{font-family:"Unbounded";font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.title{font-size:clamp(19px,3.2vw,32px);color:var(--cream);line-height:1.15}
+.title span{color:var(--amber)}
+.sub{color:var(--dim);margin:8px 0 0;max-width:760px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.stat{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)}
+.stat b{font-family:"JetBrains Mono";font-weight:400;font-size:16px;padding:5px 12px;border-radius:9px;color:#1b1b1b;
+  box-shadow:inset 0 -4px 0 #0003, inset 0 2px 0 #fff7, 0 2px 0 #000a}
+.speaker{position:relative;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ff8a4c,#c94612 55%,#93300a);
+  box-shadow:inset 0 6px 14px #0006, inset 0 -4px 10px #ffffff22, 0 0 0 6px #b73e0f55}
+.speaker::after{content:"";position:absolute;inset:16%;border-radius:50%;
+  background:radial-gradient(circle,#2a0f04 1.6px,transparent 2.2px) 0 0/12px 12px;opacity:.75}
+.knobs{display:flex;gap:18px;justify-content:center;margin-top:14px}
+.knob{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#5a6168,#262a2e 70%);
+  box-shadow:0 0 0 6px var(--cream),0 0 0 7px var(--cream-lo),0 6px 10px #0008;position:relative}
+.knob::after{content:"";position:absolute;left:50%;top:6px;width:3px;height:12px;margin-left:-1.5px;border-radius:2px;background:var(--cream)}
+.knob:nth-child(2)::after{transform-origin:50% 17px;transform:rotate(55deg)}
+@media (max-width:760px){header.top{grid-template-columns:minmax(0,1fr)}.side .speaker,.side .knobs{display:none}.sound{margin-top:0}}
+
+/* ===== клавиши ===== */
+.btn{font:inherit;font-size:12px;font-family:"Unbounded";letter-spacing:.06em;text-transform:uppercase;color:#2a2622;
+  background:linear-gradient(180deg,var(--cream-hi),var(--cream));border:0;border-radius:10px;padding:8px 14px;cursor:pointer;
+  box-shadow:inset 0 -4px 0 var(--cream-lo), 0 2px 0 #0009, 0 4px 8px #0006;transition:transform .08s, box-shadow .08s}
+.btn:hover{filter:brightness(1.04)}
+.btn:active{transform:translateY(2px);box-shadow:inset 0 -2px 0 var(--cream-lo), 0 1px 0 #0009}
+.btn.on{background:linear-gradient(180deg,#ffc04a,var(--amber));box-shadow:inset 0 -4px 0 #b9780c,0 2px 0 #0009,0 4px 8px #0006}
+.btn.red{color:#fff;background:linear-gradient(180deg,#ef5446,var(--red));box-shadow:inset 0 -4px 0 #8f1f16,0 2px 0 #0009,0 4px 8px #0006}
+.sound{margin-top:14px;width:100%}
+
+/* ===== панели: кремовый пластик + тёмная лицевая ===== */
+section.panel{margin-top:22px;border-radius:var(--r);padding:10px;
+  background:linear-gradient(180deg,var(--cream-hi),var(--cream) 40%,var(--cream-lo));
+  box-shadow:0 24px 50px -18px #000d, inset 0 2px 0 #fff, inset 0 -6px 12px #0002}
+.ph{display:flex;align-items:center;gap:12px;padding:8px 14px 12px;flex-wrap:wrap;color:#2a2622}
+.ph h2{font-size:15px;color:#2a2622}
+.ph .tag{font-size:11px;font-family:"JetBrains Mono";color:#fff;background:var(--orange);border-radius:6px;padding:2px 8px;box-shadow:inset 0 -2px 0 #0003}
+.ph .grow{flex:1}
+.ph .screw{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#b9b09c);box-shadow:inset 0 0 0 1px #0002}
+.pb{padding:18px;border-radius:calc(var(--r) - 8px);background:linear-gradient(180deg,var(--face2),var(--face));
+  box-shadow:inset 0 3px 8px #000a, inset 0 0 0 1px #000}
+
+/* ===== тепловая карта — клавиатура ===== */
+.heatgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.hm-scroll{overflow-x:auto;padding:4px 2px 10px}
+.hm{display:grid;grid-template-columns:86px repeat(29,minmax(30px,1fr));gap:5px;min-width:1000px}
+.hm .rl{font-family:"Unbounded";font-size:10px;letter-spacing:.08em;display:flex;flex-direction:column;justify-content:center;color:var(--cream);line-height:1.4}
+.hm .rl small{font-family:"JetBrains Mono";color:var(--amber);font-size:12px}
+.hm .cl{font-family:"JetBrains Mono";font-size:11px;color:var(--dim);text-align:center}
+.cell{aspect-ratio:1/1.1;border:0;border-radius:8px;cursor:pointer;font-family:"JetBrains Mono";font-size:13px;
+  display:flex;align-items:center;justify-content:center;padding:0;position:relative;
+  box-shadow:inset 0 -4px 0 #0000003a, inset 0 2px 0 #ffffff55, 0 2px 0 #000c, 0 3px 6px #0007;
+  transition:transform .1s, opacity .2s, box-shadow .1s}
+.cell:hover{transform:translateY(-2px);z-index:2}
+.cell:active{transform:translateY(1px)}
+.cell.sel{box-shadow:inset 0 -2px 0 #0003, 0 0 0 3px var(--cream), 0 0 16px var(--amber);transform:translateY(1px)}
+.cell.dim{opacity:.14}
+.cell.mark::after{content:"";position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff}
+.cell.empty{background:transparent;box-shadow:none;cursor:default}
+.legend{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.legend .grad{width:220px;height:12px;border-radius:6px;box-shadow:inset 0 1px 3px #0008}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+select{font:inherit;font-size:13px;background:var(--cream);color:#2a2622;border:0;border-radius:10px;padding:7px 12px;max-width:100%;
+  box-shadow:inset 0 -3px 0 var(--cream-lo),0 2px 0 #0009}
+.note{font-size:12px;color:var(--dim)}
+.engrave-label{font-family:"Unbounded";font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+
+/* ===== карточки — вставки на панели ===== */
+.card{background:linear-gradient(180deg,var(--face3),var(--face2));border-radius:20px;padding:16px;min-height:200px;
+  box-shadow:inset 0 2px 0 #ffffff10, 0 0 0 1px #000, 0 6px 14px #0007}
+.card .empty{color:var(--dim);font-size:14px}
+.card .code{font-family:"JetBrains Mono";color:var(--amber);font-size:12px;letter-spacing:.06em}
+.card h3{font-family:"Exo 2";font-weight:700;font-size:19px;margin:4px 0 2px;letter-spacing:.01em;text-transform:none;color:var(--cream)}
+.card .en{color:var(--dim);font-size:13px}
+.big{font-family:"JetBrains Mono";font-size:38px;line-height:1;padding:10px 16px;border-radius:12px;display:inline-block;color:#1b1b1b;margin:12px 0;
+  box-shadow:inset 0 -5px 0 #0003, inset 0 2px 0 #fff6, 0 3px 0 #000a}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px;margin:6px 0 10px}
+.meta dt{color:var(--dim);font-family:"Unbounded";font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
+.meta dd{margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font:inherit;font-size:12px;border:0;border-radius:8px;background:linear-gradient(180deg,var(--cream-hi),var(--cream));color:#2a2622;padding:4px 10px;cursor:pointer;
+  box-shadow:inset 0 -3px 0 var(--cream-lo),0 2px 0 #000a}
+.chip:hover{filter:brightness(1.05)}
+.chip:active{transform:translateY(1px)}
+.chip .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px;box-shadow:0 0 0 1px #0003}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tg{font-size:11px;font-family:"JetBrains Mono";background:#0c231c;color:var(--phos);border:1px solid #2f6b52;border-radius:6px;padding:1px 8px;text-shadow:0 0 6px #6fe0a066}
+.lbl{font-family:"Unbounded";font-size:10px;letter-spacing:.14em;color:var(--amber);margin-top:14px;text-transform:uppercase}
+
+/* ===== сезоны и топы ===== */
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media (max-width:980px){.three{grid-template-columns:1fr}}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:10px;cursor:pointer}
+.list li:hover{background:#ffffff0d}
+.list .n{font-family:"JetBrains Mono";color:var(--dim);width:20px;text-align:right;font-size:12px}
+.list .rt{font-family:"JetBrains Mono";font-size:13px;color:#1b1b1b;border-radius:7px;padding:2px 7px;min-width:40px;text-align:center;box-shadow:inset 0 -3px 0 #0003,0 2px 0 #000a}
+.list .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.list .c{font-family:"JetBrains Mono";color:var(--dim);font-size:11px}
+.sbar{margin:10px 0 16px}
+.sbar .row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.sbar .track{height:20px;background:#0c0f10;border-radius:6px;overflow:hidden;box-shadow:inset 0 2px 4px #000;padding:3px}
+.sbar .fill{height:100%;border-radius:3px;-webkit-mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 7px);mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 7px)}
+.sbar .ex{font-size:12px;color:var(--dim);margin-top:4px}
+.sbar .ex a{color:var(--cream)}
+
+/* ===== граф — экран кинескопа ===== */
+.gwrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:980px){.gwrap{grid-template-columns:1fr}}
+.bezel{padding:14px;border-radius:44px;background:linear-gradient(180deg,#121517,#0a0c0d);box-shadow:inset 0 2px 0 #ffffff14,0 0 0 2px #000}
+.graph{position:relative;height:640px;overflow:hidden;touch-action:none;border-radius:36px/30px;
+  background:radial-gradient(ellipse at 50% 45%,var(--crt2) 0,var(--crt) 65%,#06140f 100%);
+  box-shadow:inset 0 0 60px #000c, inset 0 0 0 2px #000}
+.graph::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;border-radius:inherit;
+  background:repeating-linear-gradient(0deg,#0000 0 2px,#00000038 2px 3px)}
+.graph::after{content:"";position:absolute;left:8%;top:4%;width:44%;height:30%;pointer-events:none;z-index:1;border-radius:50%;
+  background:radial-gradient(closest-side,#ffffff14,transparent);transform:rotate(-12deg)}
+@media (max-width:640px){.graph{height:480px}.bezel{padding:8px;border-radius:30px}}
+.graph svg{width:100%;height:100%;display:block}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.fl{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#2a2622;border-radius:9px;padding:6px 12px 6px 9px;cursor:pointer;user-select:none;
+  background:linear-gradient(180deg,var(--cream-hi),var(--cream));box-shadow:inset 0 -3px 0 var(--cream-lo),0 2px 0 #000a}
+.fl:has(input:not(:checked)){background:linear-gradient(180deg,#8d8678,#766f62);color:#2a2622cc;box-shadow:inset 0 2px 3px #0005}
+.fl input{accent-color:var(--orange);margin:0}
+.fl .sw{width:18px;height:4px;border-radius:2px}
+.gtools{position:absolute;right:14px;top:14px;display:flex;gap:6px;z-index:3}
+.node{cursor:pointer}
+.node text.lab{font-family:"JetBrains Mono";font-size:11px;fill:var(--phos);paint-order:stroke;stroke:#06140f;stroke-width:3px;pointer-events:none}
+.node text.ini{font-family:"Unbounded";pointer-events:none}
+.node.faded{opacity:.14}
+.link.faded{opacity:.04!important}
+.tip{position:fixed;pointer-events:none;background:#0c231cf2;color:var(--phos);border:1px solid #2f6b52;border-radius:10px;padding:7px 11px;font:12px/1.45 "JetBrains Mono",monospace;z-index:50;display:none;max-width:280px;box-shadow:0 8px 20px #000a}
+.tip b{color:#e9fff1}
+footer{color:var(--dim);font-size:12px;padding:22px 6px 40px;line-height:1.6}
+footer a{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="faceplate">
+    <div class="console" aria-hidden="true">
+      <span class="lamp" style="color:var(--red);background:var(--red)"></span>
+      <span class="lamp" style="color:var(--green);background:var(--green)"></span>
+      <span class="lamp" style="color:var(--amber);background:var(--amber)"></span>
+      <span class="bar"></span>
+      <span class="engr">Бортовой журнал · 1966–1969</span>
+    </div>
+    <h1 class="title">Звёздный путь <span>· Оригинальный сериал</span></h1>
+    <p class="sub">Тепловая карта оценок IMDb всех 79 серий и карта связей персонажей. Нажмите на серию, чтобы увидеть, кто в ней появляется, или на персонажа, чтобы подсветить его серии.</p>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="side" aria-hidden="false">
+    <div class="speaker" aria-hidden="true"></div>
+    <div class="knobs" aria-hidden="true"><span class="knob"></span><span class="knob"></span></div>
+    <button class="btn red sound" id="sound" type="button">♪ Звук: вкл</button>
+  </div>
+</header>
+
+<section class="panel" id="heat">
+  <div class="ph"><span class="screw"></span><h2>Тепловая карта рейтингов</h2><span class="tag">IMDb</span><span class="grow"></span>
+    <button class="btn" id="clear" type="button">Сбросить выбор</button></div>
+  <div class="pb">
+    <div class="heatgrid">
+      <div>
+        <div class="controls">
+          <label class="note" for="layer">Слой:</label>
+          <select id="layer"></select>
+          <span class="note" id="layerInfo"></span>
+        </div>
+        <div class="hm-scroll"><div class="hm" id="hm"></div></div>
+        <div class="legend">
+          <span>5.0</span><span class="grad" id="grad"></span><span>9.3</span>
+          <span>· обводка = серии выбранного персонажа · тусклые = не подходят под фильтр</span>
+        </div>
+      </div>
+      <div class="card" id="epCard"><p class="empty">Выберите серию на карте — здесь появятся рейтинг, создатели, звёздная дата, сюжет и персонажи.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="ph"><span class="screw"></span><h2>Сезоны и рекорды</h2></div>
+  <div class="pb three">
+    <div><div class="lbl" style="margin-top:0">Средний рейтинг по сезонам</div><div id="seasons"></div></div>
+    <div><div class="lbl" style="margin-top:0">Топ-10</div><ol class="list" id="top"></ol></div>
+    <div><div class="lbl" style="margin-top:0">Антитоп-10</div><ol class="list" id="bottom"></ol></div>
+  </div>
+</section>
+
+<section class="panel" id="net">
+  <div class="ph"><span class="screw"></span><h2>Карта экипажа и связей</h2><span class="tag" style="background:var(--gold)">64 персонажа</span></div>
+  <div class="pb">
+    <div class="filters" id="filters"></div>
+    <div class="gwrap">
+      <div class="bezel"><div class="graph" id="graph">
+        <div class="gtools"><button class="btn" id="zin" type="button" aria-label="Приблизить">+</button><button class="btn" id="zout" type="button" aria-label="Отдалить">−</button><button class="btn" id="zreset" type="button">центр</button></div>
+      </div></div>
+      <div class="card" id="chCard"><p class="empty">Нажмите на персонажа: его серии подсветятся на тепловой карте, а здесь появятся связи и средний рейтинг его серий. Узлы можно перетаскивать, граф — масштабировать.</p></div>
+    </div>
+  </div>
+</section>
+
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+/* ===================== ДАННЫЕ: СЕРИИ ===================== */
+/* [сезон, серия, оригинал, русское (Toramp), дата, режиссёр, сценарий, звёздная дата, рейтинг IMDb, сюжет] */
+const RAW = [
+[1,1,"The Man Trap","Ловушка","1966-09-08","Marc Daniels","George Clayton Johnson","1513.1",7.3,"Бывшая возлюбленная Маккоя оказывается не той, кем кажется, а члены экипажа гибнут от внезапной потери соли."],
+[1,2,"Charlie X","Чарли Икс","1966-09-15","Lawrence Dobkin","D.C. Fontana","1533.6",7.2,"На борт попадает семнадцатилетний юноша, выросший в одиночестве на далёкой планете и обладающий пугающими способностями."],
+[1,3,"Where No Man Has Gone Before","Куда не ступала нога человека","1966-09-22","James Goldstone","Samuel A. Peeples","1312.4",7.8,"У края галактики барьер наделяет штурмана Гэри Митчелла растущими сверхспособностями."],
+[1,4,"The Naked Time","Чистое время","1966-09-29","Marc Daniels","John D.F. Black","1704.2",8.0,"Неизвестная инфекция снимает с экипажа все внутренние запреты — как раз когда корабль нужно удержать на орбите гибнущей планеты."],
+[1,5,"The Enemy Within","Враг изнутри","1966-10-06","Leo Penn","Richard Matheson","1672.1",7.8,"Сбой транспортатора раскалывает Кирка на две половины — нерешительную и агрессивную."],
+[1,6,"Mudd's Women","Женщины Мадда","1966-10-13","Harvey Hart","Stephen Kandel","1329.1",6.9,"На корабль попадает обаятельный проходимец Гарри Мадд с тремя загадочно притягательными спутницами."],
+[1,7,"What Are Little Girls Made Of?","Из чего сделаны девочки?","1966-10-20","James Goldstone","Robert Bloch","2712.4",7.6,"Медсестра Чапел находит пропавшего жениха-учёного, но его открытия на ледяной планете оказываются опасными."],
+[1,8,"Miri","Мири","1966-10-27","Vincent McEveety","Adrian Spies","2713.5",7.1,"Экипаж высаживается на двойника Земли, где остались только дети — и болезнь, убивающая взрослых."],
+[1,9,"Dagger of the Mind","Кинжал разума","1966-11-03","Vincent McEveety","S. Bar-David","2715.1",7.5,"Кирк проверяет образцовую исправительную колонию, где испытывают новый метод «лечения» разума."],
+[1,10,"The Corbomite Maneuver","Корбомитовый манёвр","1966-11-10","Joseph Sargent","Jerry Sohl","1512.2",8.2,"Гигантский чужой корабль обвиняет «Энтерпрайз» во вторжении, и Кирку остаётся только блефовать."],
+[1,11,"The Menagerie, Part I","Зверинец, часть 1","1966-11-17","Marc Daniels","Gene Roddenberry","3012.4",8.4,"Спок похищает своего бывшего капитана Пайка и уводит корабль к запретной планете — его ждёт трибунал."],
+[1,12,"The Menagerie, Part II","Зверинец, часть 2","1966-11-24","Robert Butler, Marc Daniels","Gene Roddenberry","3013.1",8.3,"На трибунале Спок показывает записи о давней экспедиции Пайка на Талос IV."],
+[1,13,"The Conscience of the King","Совесть короля","1966-12-08","Gerd Oswald","Barry Trivers","2817.6",7.3,"Кирк подозревает, что глава бродячей театральной труппы — скрывшийся диктатор-палач."],
+[1,14,"Balance of Terror","Равновесие страха","1966-12-15","Vincent McEveety","Paul Schneider","1709.1",9.0,"Ромуланцы нарушают нейтральную зону, и начинается дуэль двух капитанов, никогда не видевших друг друга."],
+[1,15,"Shore Leave","Увольнение на берег","1966-12-29","Robert Sparr","Theodore Sturgeon","3025.3",7.7,"Отпуск на идиллической планете оборачивается странностями: оживают фантазии экипажа."],
+[1,16,"The Galileo Seven","Галилей-VII","1967-01-05","Robert Gist","Oliver Crawford, S. Bar-David","2821.5",7.8,"Шаттл под командованием Спока терпит крушение, и его логика сталкивается со страхом подчинённых."],
+[1,17,"The Squire of Gothos","Готосский сквайр","1967-01-12","Don McDougall","Paul Schneider","2124.5",7.5,"Капризное всемогущее существо решает поиграть с экипажем в своём замке."],
+[1,18,"Arena","Арена","1967-01-19","Joseph Pevney","Gene L. Coon","3045.6",8.1,"Могущественная раса заставляет Кирка сразиться один на один с капитаном враждебного корабля."],
+[1,19,"Tomorrow Is Yesterday","Завтра — это вчера","1967-01-26","Michael O'Herlihy","D.C. Fontana","3113.2",8.0,"Корабль отбрасывает в 1960-е, и его замечает пилот ВВС США."],
+[1,20,"Court Martial","Трибунал","1967-02-02","Marc Daniels","Don M. Mankiewicz, Steven W. Carabatsos","2947.3",7.5,"Кирка обвиняют в гибели офицера, и он предстаёт перед военным судом."],
+[1,21,"The Return of the Archons","Возвращение «Аркона»","1967-02-09","Joseph Pevney","Boris Sobelman","3156.2",7.3,"Экипаж находит общество, живущее в безмятежном подчинении таинственному правителю."],
+[1,22,"Space Seed","Семя в космосе","1967-02-16","Marc Daniels","Gene L. Coon, Carey Wilber","3141.9",8.9,"В космосе дрейфует корабль с людьми в анабиозе, родом из конца XX века."],
+[1,23,"A Taste of Armageddon","Вкус Армагеддона","1967-02-23","Joseph Pevney","Robert Hamner, Gene L. Coon","3192.1",8.1,"Две планеты ведут войну с помощью компьютерной симуляции, но погибают на ней по-настоящему."],
+[1,24,"This Side of Paradise","Эта сторона рая","1967-03-02","Ralph Senensky","D.C. Fontana","3417.3",8.0,"Колонисты облучённой планеты неправдоподобно здоровы и счастливы — и Спок тоже меняется."],
+[1,25,"The Devil in the Dark","Дьявол в темноте","1967-03-09","Joseph Pevney","Gene L. Coon","3196.1",8.5,"Шахтёров колонии убивает неуловимое существо, проходящее сквозь камень."],
+[1,26,"Errand of Mercy","Миссия милосердия","1967-03-23","John Newland","Gene L. Coon","3198.4",8.3,"Кирк и Спок пытаются поднять мирную планету на сопротивление клингонской оккупации."],
+[1,27,"The Alternative Factor","Альтернативный фактор","1967-03-30","Gerd Oswald","Don Ingalls","3087.6",5.8,"Человек, преследующий своего двойника, ставит под угрозу саму ткань реальности."],
+[1,28,"The City on the Edge of Forever","Город на краю вечности","1967-04-06","Joseph Pevney","Harlan Ellison","3134.0",9.3,"Обезумевший Маккой проходит через портал времени в 1930-е, и Кирк со Споком бросаются за ним."],
+[1,29,"Operation: Annihilate!","Операция «Уничтожить»","1967-04-13","Herschel Daugherty","Steven W. Carabatsos","3287.2",7.6,"Колонию охватывает эпидемия безумия, которую разносят паразиты, похожие на амёб."],
+[2,1,"Amok Time","Время ярости","1967-09-15","Joseph Pevney","Theodore Sturgeon","3372.7",8.8,"У Спока начинается вулканский брачный цикл, и кораблю приходится срочно лететь на Вулкан."],
+[2,2,"Who Mourns for Adonais?","Кто скорбит по Адонаю?","1967-09-22","Marc Daniels","Gilbert Ralston","3468.1",7.1,"Существо, называющее себя Аполлоном, требует от экипажа поклонения."],
+[2,3,"The Changeling","Подменыш","1967-09-29","Marc Daniels","John Meredyth Lucas","3541.9",7.8,"На борт поднимают древний земной зонд, который принимает Кирка за своего создателя."],
+[2,4,"Mirror, Mirror","Свет мой, зеркальце…","1967-10-06","Marc Daniels","Jerome Bixby","—",9.2,"Авария транспортатора переносит Кирка и его спутников в зеркальную вселенную, где правит жестокая Империя."],
+[2,5,"The Apple","Яблоко","1967-10-13","Joseph Pevney","Max Ehrlich","3715.3",6.4,"Жители райской планеты служат божеству, которое требует изгнать чужаков."],
+[2,6,"The Doomsday Machine","Машина судного дня","1967-10-20","Marc Daniels","Norman Spinrad","4202.9",8.8,"Экипаж находит разбитый звездолёт и его капитана, одержимого машиной, пожирающей планеты."],
+[2,7,"Catspaw","Кошачья лапа","1967-10-27","Joseph Pevney","Robert Bloch","3018.2",6.2,"На мрачной планете исследователей встречают ведьмы, чёрный кот и замок с ловушками."],
+[2,8,"I, Mudd","Я, Мадд","1967-11-03","Marc Daniels","Stephen Kandel","4513.3",7.5,"Андроиды угоняют «Энтерпрайз», и за этим снова стоит Гарри Мадд."],
+[2,9,"Metamorphosis","Метаморфоза","1967-11-10","Ralph Senensky","Gene L. Coon","3219.4",7.4,"Шаттл с больной дипломаткой затягивает на планету, где живёт легендарный изобретатель."],
+[2,10,"Journey to Babel","Путь на Вавилон","1967-11-17","Joseph Pevney","D.C. Fontana","3842.3",8.6,"Корабль везёт делегатов на конференцию, среди них — отец Спока, и на борту происходит убийство."],
+[2,11,"Friday's Child","Дитя пятницы","1967-12-01","Joseph Pevney","D.C. Fontana","3497.2",6.9,"Клингоны и Федерация соперничают за права на добычу на планете воинственного народа."],
+[2,12,"The Deadly Years","Смертельные годы","1967-12-08","Joseph Pevney","David P. Harmon","3478.2",7.4,"Высадочная группа стремительно стареет, а у нейтральной зоны нужен решительный командир."],
+[2,13,"Obsession","Наваждение","1967-12-15","Ralph Senensky","Art Wallace","3619.2",7.4,"Кирк охотится за облачным существом, которое когда-то погубило его товарищей."],
+[2,14,"Wolf in the Fold","Волк в овчарне","1967-12-22","Joseph Pevney","Robert Bloch","3614.9",7.4,"На планете удовольствий Скотти обвиняют в серии убийств."],
+[2,15,"The Trouble with Tribbles","Тревога и трибблы","1967-12-29","Joseph Pevney","David Gerrold","4523.3",8.9,"Станцию с ценным зерном заполоняют пушистые мурлыкающие зверьки, а рядом — клингоны."],
+[2,16,"The Gamesters of Triskelion","Игроки Трискилиона","1968-01-05","Gene Nelson","Margaret Armen","3211.7",7.0,"Кирка, Ухуру и Чехова похищают для гладиаторских боёв на потеху невидимым хозяевам."],
+[2,17,"A Piece of the Action","Доля в деле","1968-01-12","James Komack","David P. Harmon, Gene L. Coon","—",7.9,"Планета переняла культуру чикагских гангстеров 1920-х по одной забытой книге."],
+[2,18,"The Immunity Syndrome","Иммунный синдром","1968-01-19","Joseph Pevney","Robert Sabaroff","4307.1",7.6,"Гигантский космический организм поглощает энергию целых звёздных систем."],
+[2,19,"A Private Little War","Маленькая личная война","1968-02-02","Marc Daniels","Gene Roddenberry","4211.4",7.0,"Кирк узнаёт, что клингоны вооружают одно из племён на знакомой ему мирной планете."],
+[2,20,"Return to Tomorrow","Возвращение в завтра","1968-02-09","Ralph Senensky","John Kingsbridge","4768.3",7.6,"Древние разумы без тел просят одолжить им тела Кирка, Спока и учёной Малхолл."],
+[2,21,"Patterns of Force","Образец силы","1968-02-16","Vincent McEveety","John Meredyth Lucas","2534.0",7.6,"Наблюдатель Федерации воссоздал на чужой планете нацистское государство."],
+[2,22,"By Any Other Name","По любому другому имени","1968-02-23","Marc Daniels","D.C. Fontana, Jerome Bixby","4657.5",7.7,"Пришельцы в человеческом облике захватывают корабль для полёта в свою галактику."],
+[2,23,"The Omega Glory","Окончательная победа","1968-03-01","Vincent McEveety","Gene Roddenberry","—",6.3,"Кирк находит капитана другого звездолёта, нарушившего Первую директиву."],
+[2,24,"The Ultimate Computer","Новейший компьютер","1968-03-08","John Meredyth Lucas","D.C. Fontana","4729.4",8.1,"Новый компьютер М-5 должен управлять кораблём почти без экипажа — испытания идут не по плану."],
+[2,25,"Bread and Circuses","Хлеба и зрелищ","1968-03-15","Ralph Senensky","Gene Roddenberry, Gene L. Coon","4040.7",7.3,"Экипаж попадает на планету, где Римская империя дожила до эпохи телевидения."],
+[2,26,"Assignment: Earth","Цель: Земля","1968-03-29","Marc Daniels","Art Wallace","—",7.7,"В 1968 году экипаж встречает таинственного Гэри Севена с собственной миссией на Земле."],
+[3,1,"Spock's Brain","Мозг Спока","1968-09-20","Marc Daniels","Lee Cronin","5431.4",5.6,"Таинственная гостья похищает мозг Спока, и экипаж бросается на поиски."],
+[3,2,"The Enterprise Incident","Происшествие на Энтерпрайзе","1968-09-27","John Meredyth Lucas","D.C. Fontana","5027.3",8.6,"Кирк, похоже, теряет рассудок и ведёт корабль в ромуланское пространство."],
+[3,3,"The Paradise Syndrome","Райский синдром","1968-10-04","Jud Taylor","Margaret Armen","4842.6",6.8,"Кирк теряет память на планете, которой грозит астероид, и становится для её жителей богом."],
+[3,4,"And the Children Shall Lead","И поведут нас наши дети…","1968-10-11","Marvin Chomsky","Edward J. Lakso","5029.5",5.2,"Взрослые колонисты погибли, а дети беззаботно играют под присмотром невидимого «друга»."],
+[3,5,"Is There in Truth No Beauty?","Разве правда прекрасна?","1968-10-18","Ralph Senensky","Jean Lisette Aroeste","5630.7",7.0,"На борт прибывает посол, чей облик сводит людей с ума, и его спутница-телепат."],
+[3,6,"Spectre of the Gun","Призрак ружья","1968-10-25","Vincent McEveety","Lee Cronin","4385.3",7.4,"Пришельцы помещают высадочную группу в перестрелку у кораля О-Кей — на сторону проигравших."],
+[3,7,"Day of the Dove","День примирения","1968-11-01","Marvin Chomsky","Jerome Bixby","—",8.0,"Люди и клингоны заперты на одном корабле с существом, которое питается ненавистью."],
+[3,8,"For the World Is Hollow and I Have Touched the Sky","Ибо мир полый, и я коснулся неба","1968-11-08","Tony Leader","Rik Vollaerts","5476.3",7.2,"«Астероид» на пути к населённой планете оказывается древним кораблём-ковчегом."],
+[3,9,"The Tholian Web","Паутина толиан","1968-11-15","Ralph Senensky, Herb Wallerstein","Judy Burns, Chet Richards","5693.2",8.1,"Кирк пропадает вместе с дрейфующим кораблём, а толиане оплетают «Энтерпрайз» паутиной."],
+[3,10,"Plato's Stepchildren","Пасынки Платона","1968-11-22","David Alexander","Meyer Dolinsky","5784.0",6.6,"Телекинетики, считающие себя наследниками Платона, не желают отпускать Маккоя."],
+[3,11,"Wink of an Eye","В мгновение ока","1968-11-29","Jud Taylor","Arthur Heinemann","5710.5",7.4,"Пришельцы, живущие в ускоренном времени, невидимо захватывают корабль."],
+[3,12,"The Empath","Эмпат","1968-12-06","John Erman","Joyce Muskat","5121.0",6.6,"Кирк, Спок и Маккой становятся подопытными в подземной лаборатории вместе с немой эмпаткой."],
+[3,13,"Elaan of Troyius","Элаан тройская","1968-12-20","John Meredyth Lucas","John Meredyth Lucas","4372.5",7.2,"Кирк везёт капризную принцессу на дипломатическую свадьбу."],
+[3,14,"Whom Gods Destroy","Кого уничтожают боги","1969-01-03","Herb Wallerstein","Lee Erwin","5718.3",7.0,"Бывший герой флота захватывает лечебницу для душевнобольных."],
+[3,15,"Let That Be Your Last Battlefield","Пусть это будет твой последний бой","1969-01-10","Jud Taylor","Oliver Crawford","5730.2",7.2,"На борту оказываются двое представителей одной расы, «раскрашенные» зеркально и непримиримые друг к другу."],
+[3,16,"The Mark of Gideon","Цель Гидеона","1969-01-17","Jud Taylor","George F. Slavin, Stanley Adams","5423.4",6.5,"Кирк телепортируется на перенаселённую планету — и оказывается на пустом «Энтерпрайзе»."],
+[3,17,"That Which Survives","То, что остается","1969-01-24","Herb Wallerstein","John Meredyth Lucas","—",6.5,"Корабль отбрасывает на тысячу световых лет, а высадочную группу преследует смертоносный женский образ."],
+[3,18,"The Lights of Zetar","Свет Зетара","1969-01-31","Herb Kenwith","Jeremy Tarcher, Shari Lewis","5725.3",6.2,"Загадочные огни нападают на архив-библиотеку и как-то связаны с новой знакомой Скотти."],
+[3,19,"Requiem for Methuselah","Реквием для Мафусаила","1969-02-14","Murray Golden","Jerome Bixby","5843.7",7.6,"В поисках лекарства экипаж находит отшельника-коллекционера шедевров и его воспитанницу."],
+[3,20,"The Way to Eden","Дорога в Эдем","1969-02-21","David Alexander","Arthur Heinemann","5832.3",5.5,"На корабль попадает группа космических хиппи, ищущих мифический Эдем."],
+[3,21,"The Cloud Minders","Смотрители в облаках","1969-02-28","Jud Taylor","Margaret Armen","5818.4",7.0,"Элита живёт в облачном городе, а шахтёры — внизу, и экипаж оказывается между ними."],
+[3,22,"The Savage Curtain","Дикая завеса","1969-03-07","Herschel Daugherty","Gene Roddenberry, Arthur Heinemann","5906.4",6.8,"Существо-камень устраивает битву «добра» и «зла» с участием легендарных фигур прошлого."],
+[3,23,"All Our Yesterdays","Все наше прошлое","1969-03-14","Marvin Chomsky","Jean Lisette Aroeste","5943.7",8.3,"Жители обречённой планеты спаслись в прошлом — и туда же попадают Кирк, Спок и Маккой."],
+[3,24,"Turnabout Intruder","Воспитание злодея","1969-06-03","Herb Wallerstein","Arthur H. Singer","5928.5",6.9,"Бывшая возлюбленная Кирка меняется с ним телами, чтобы командовать кораблём."]
+];
+
+/* ===================== СЛОИ ===================== */
+const LAYERS = {
+  "Аллегории эпохи": {
+    cold:   ["Холодная война",        ["1-14","1-23","1-26","2-11","2-19","2-23","3-02","3-07"]],
+    viet:   ["Вьетнам",               ["2-19","2-23"]],
+    nuke:   ["Ядерная угроза",        ["1-23","2-06","2-26"]],
+    race:   ["Расизм и нетерпимость", ["3-15","1-25","1-14"]],
+    total:  ["Тоталитаризм",          ["1-09","1-21","2-21","2-25"]],
+    ai:     ["ИИ и автоматизация",    ["1-07","1-21","2-03","2-05","2-08","2-24"]],
+    counter:["Контркультура 60-х",    ["3-20","1-24"]],
+    klass:  ["Классовое неравенство", ["3-21","2-25","2-16"]],
+    pop:    ["Перенаселение",         ["3-16"]],
+    gender: ["Гендерное неравенство", ["3-24"]]
+  },
+  "Враги и расы": {
+    kli:  ["Клингоны",              ["1-26","2-11","2-15","2-19","3-07","3-13"]],
+    rom:  ["Ромуланцы",             ["1-14","2-12","3-02"]],
+    vul:  ["Вулканцы",              ["2-01","2-10","3-02","3-22"]],
+    mach: ["Машины и компьютеры",   ["1-07","1-21","2-03","2-05","2-06","2-08","2-24","3-19"]],
+    gods: ["Всемогущие существа",   ["1-02","1-15","1-17","1-26","2-02","2-07","3-10"]],
+    other:["Иные расы (Горн, толиане, Хорта)", ["1-18","1-25","3-09"]]
+  }
+};
+
+/* ===================== ПЕРСОНАЖИ ===================== */
+const FAC = {
+  cmd:["Командование","#e3b341"], sci:["Наука и медицина","#5b8fd1"], ops:["Инженерия и связь","#d0453a"],
+  fed:["Федерация","#9fb3c8"], vul:["Вулканцы","#4fae6a"], kli:["Клингоны","#b8642e"], rom:["Ромуланцы","#8fae3a"],
+  alien:["Иные расы и существа","#a77bd0"], ai:["Машины и андроиды","#3fc1bd"], earth:["Земляне вне флота","#d9a77a"]
+};
+const TIER = ["Основной экипаж","Повторяющиеся","Гости"];
+const EP = RAW.map((r,i)=>({n:i+1,s:r[0],e:r[1],id:r[0]+"-"+String(r[1]).padStart(2,"0"),en:r[2],ru:r[3],date:r[4],dir:r[5],wr:r[6],sd:r[7],r:r[8],syn:r[9]}));
+const EPI = Object.fromEntries(EP.map(e=>[e.id,e]));
+const ALL = EP.map(e=>e.id);
+const from = id => ALL.slice(ALL.indexOf(id));
+
+/* id, короткое имя, полное, англ., роль, фракция, ярус, серии, приблизительно */
+const CH = [
+ ["kirk","Кирк","Джеймс Т. Кирк","James T. Kirk","Капитан «Энтерпрайза»","cmd",0,ALL,1],
+ ["spock","Спок","Спок","Spock","Старший помощник, научный офицер","sci",0,ALL,1],
+ ["mccoy","Маккой","Леонард «Боунз» Маккой","Leonard McCoy","Главный врач","sci",0,ALL.filter(x=>x!=="1-03"),1],
+ ["scotty","Скотти","Монтгомери Скотт","Montgomery Scott","Главный инженер","ops",0,from("1-03"),1],
+ ["uhura","Ухура","Нийота Ухура","Nyota Uhura","Офицер связи","ops",0,ALL,1],
+ ["sulu","Сулу","Хикару Сулу","Hikaru Sulu","Рулевой","cmd",0,from("1-03"),1],
+ ["chekov","Чехов","Павел Чехов","Pavel Chekov","Навигатор (с 2-го сезона)","cmd",0,from("2-01"),1],
+ ["chapel","Чапел","Кристин Чапел","Christine Chapel","Медсестра","sci",1,["1-04","1-07","1-29","2-01","2-03","2-10","2-12","2-20","3-01","3-09","3-10","3-18","3-24"],0],
+ ["rand","Рэнд","Дженис Рэнд","Janice Rand","Йомен капитана","cmd",1,["1-01","1-02","1-04","1-05","1-06","1-08","1-10","1-14"],0],
+ ["pike","Пайк","Кристофер Пайк","Christopher Pike","Прежний капитан «Энтерпрайза»","fed",1,["1-11","1-12"],0],
+ ["mudd","Мадд","Гарри Мадд","Harry Mudd","Аферист и контрабандист","earth",1,["1-06","2-08"],0],
+ ["sarek","Сарек","Сарек","Sarek","Вулканский посол, отец Спока","vul",1,["2-10"],0],
+ ["amanda","Аманда","Аманда Грейсон","Amanda Grayson","Мать Спока, землянка","earth",1,["2-10"],0],
+ ["vina","Вина","Вина","Vina","Выжившая на Талосе IV","earth",2,["1-11","1-12"],0],
+ ["keeper","Хранитель","Хранитель талосианцев","The Keeper","Талосианец-телепат","alien",2,["1-11","1-12"],0],
+ ["mitchell","Митчелл","Гэри Митчелл","Gary Mitchell","Штурман, старый друг Кирка","cmd",2,["1-03"],0],
+ ["dehner","Денер","Элизабет Денер","Elizabeth Dehner","Корабельный психиатр","sci",2,["1-03"],0],
+ ["korby","Корби","Роджер Корби","Roger Korby","Учёный-археолог","fed",2,["1-07"],0],
+ ["charlie","Чарли","Чарли Эванс","Charlie Evans","Юноша с даром телекинеза","alien",2,["1-02"],0],
+ ["khan","Хан","Хан Нуньен Сингх","Khan Noonien Singh","Генетически улучшенный завоеватель","earth",2,["1-22"],0],
+ ["mcgivers","Макгиверс","Марла Макгиверс","Marla McGivers","Корабельный историк","fed",2,["1-22"],0],
+ ["trelane","Трелейн","Трелейн","Trelane","Всемогущий «сквайр»","alien",2,["1-17"],0],
+ ["gorn","Горн","Капитан горнов","Gorn Captain","Рептилоид, противник на арене","alien",2,["1-18"],0],
+ ["kor","Кор","Кор","Kor","Клингонский губернатор","kli",2,["1-26"],0],
+ ["keeler","Килер","Эдит Килер","Edith Keeler","Основательница миссии, 1930-е","earth",2,["1-28"],0],
+ ["finney","Финни","Бен Финни","Ben Finney","Офицер, бывший друг Кирка","fed",2,["1-20"],0],
+ ["romcap","Командир","Ромуланский командир","Romulan Commander","Капитан хищной птицы","rom",2,["1-14"],0],
+ ["romcmdr","Командирша","Ромуланская командирша","Romulan Commander","Командующая ромуланским флагманом","rom",2,["3-02"],0],
+ ["tpring","Т'Принг","Т'Принг","T'Pring","Нареченная Спока","vul",2,["2-01"],0],
+ ["tpau","Т'Пау","Т'Пау","T'Pau","Вулканский матриарх","vul",2,["2-01"],0],
+ ["apollo","Аполлон","Аполлон","Apollo","Существо, бывшее древним богом","alien",2,["2-02"],0],
+ ["decker","Деккер","Мэтт Деккер","Matt Decker","Коммодор, капитан «Констеллейшн»","fed",2,["2-06"],0],
+ ["koloth","Колот","Колот","Koloth","Клингонский капитан","kli",2,["2-15"],0],
+ ["cyrano","Сирано","Сирано Джонс","Cyrano Jones","Торговец трибблами","earth",2,["2-15"],0],
+ ["kang","Канг","Канг","Kang","Клингонский командир","kli",2,["3-07"],0],
+ ["daystrom","Дэйстром","Ричард Дэйстром","Richard Daystrom","Гениальный компьютерщик","fed",2,["2-24"],0],
+ ["m5","М-5","Мультитронный компьютер М-5","M-5","Экспериментальный ИИ","ai",2,["2-24"],0],
+ ["nomad","Номад","Номад","Nomad","Земной зонд-мутант","ai",2,["2-03"],0],
+ ["seven","Севен","Гэри Севен","Gary Seven","Агент неизвестной цивилизации","earth",2,["2-26"],0],
+ ["lester","Лестер","Дженис Лестер","Janice Lester","Учёная, бывшая возлюбленная Кирка","fed",2,["3-24"],0],
+ ["garth","Гарт","Гарт Изарский","Garth of Izar","Бывший герой флота","fed",2,["3-14"],0],
+ ["flint","Флинт","Флинт","Flint","Бессмертный отшельник","earth",2,["3-19"],0],
+ ["rayna","Рейна","Рейна Капек","Rayna Kapec","Воспитанница Флинта","ai",2,["3-19"],0],
+ ["surak","Сурак","Сурак","Surak","Отец вулканской философии","vul",2,["3-22"],0],
+ ["lincoln","Линкольн","Авраам Линкольн","Abraham Lincoln","Образ президента США","earth",2,["3-22"],0],
+ ["landru","Ландру","Ландру","Landru","Правитель-машина","ai",2,["1-21"],0],
+ ["elaan","Элаан","Элаан","Elaan","Догаресса Эласа","alien",2,["3-13"],0],
+ ["mspock","Спок-зерк.","Зеркальный Спок","Mirror Spock","Спок из зеркальной вселенной","sci",2,["2-04"],0],
+ ["marlena","Марлена","Марлена Моро","Marlena Moreau","Спутница зеркального Кирка","fed",2,["2-04"],0],
+ ["miramanee","Мирамани","Мирамани","Miramanee","Жрица племени","alien",2,["3-03"],0],
+ ["tracey","Трейси","Рональд Трейси","Ronald Tracey","Капитан «Эксетера»","fed",2,["2-23"],0],
+ ["leila","Лейла","Лейла Каломи","Leila Kalomi","Ботаник, давняя знакомая Спока","fed",2,["1-24"],0],
+ ["numberone","Номер один","Номер один","Number One","Старпом капитана Пайка","cmd",2,["1-11","1-12"],0],
+ ["leslie","Лесли","Лесли","Mr. Leslie","Офицер экипажа, частый эпизодический персонаж","ops",1,["1-24","2-13"],0],
+ ["kyle","Кайл","Джон Кайл","John B. Kyle","Начальник транспортаторной","ops",1,["1-19","1-22","2-02","2-04"],0],
+ ["stonn","Стонн","Стонн","Stonn","Вулканец, избранник Т'Принг","vul",2,["2-01"],0],
+ ["stone","Стоун","Коммодор Стоун","Commodore Stone","Председатель трибунала","fed",2,["1-20"],0],
+ ["baris","Барис","Нилз Барис","Nilz Baris","Заместитель министра по сельскому хозяйству","fed",2,["2-15"],0],
+ ["andrea","Андреа","Андреа","Andrea","Андроид Корби","ai",2,["1-07"],0],
+ ["ruk","Рук","Рук","Ruk","Древний андроид-страж","ai",2,["1-07"],0],
+ ["cochrane","Кокрейн","Зефрам Кокрейн","Zefram Cochrane","Изобретатель варп-двигателя","earth",2,["2-09"],0],
+ ["roberta","Роберта","Роберта Линкольн","Roberta Lincoln","Секретарь Гэри Севена","earth",2,["2-26"],0],
+ ["lazarus","Лазарус","Лазарус","Lazarus","Путешественник между вселенными","earth",2,["1-27"],0],
+ ["miri","Мири","Мири","Miri","Девочка с планеты-двойника Земли","alien",2,["1-08"],0]
+].map(c=>({id:c[0],ru:c[1],full:c[2],en:c[3],role:c[4],fac:c[5],tier:c[6],eps:c[7],approx:!!c[8]}));
+const CHI = Object.fromEntries(CH.map(c=>[c.id,c]));
+
+/* связи: d — служебные, p — личные и семейные, h — враждебные */
+const EDGES = [
+ ["kirk","spock","d","капитан и старпом"],["kirk","mccoy","d","капитан и главврач"],["kirk","scotty","d","главный инженер"],
+ ["kirk","uhura","d","офицер связи"],["kirk","sulu","d","рулевой"],["kirk","chekov","d","навигатор"],["kirk","rand","d","йомен капитана"],
+ ["mccoy","chapel","d","главврач и медсестра"],["spock","uhura","d","мостик"],["scotty","chekov","d","мостик"],
+ ["pike","kirk","d","предшественник"],["pike","spock","d","бывший капитан Спока"],["kirk","decker","d","коммодор"],
+ ["kirk","mcgivers","d","историк корабля"],["kirk","mitchell","d","штурман"],["kirk","dehner","d","психиатр корабля"],
+ ["kirk","daystrom","d","испытания М-5"],["kirk","mspock","d","союзник по ту сторону зеркала"],["kirk","finney","d","бывший сослуживец"],
+ ["kirk","spock","p","дружба"],["kirk","mccoy","p","дружба"],["spock","mccoy","p","вечный спор"],
+ ["spock","sarek","p","отец и сын"],["spock","amanda","p","мать и сын"],["sarek","amanda","p","супруги"],
+ ["spock","tpring","p","помолвка с детства"],["spock","tpau","p","ритуал кун-ут-калифи"],["khan","mcgivers","p","роман"],
+ ["kirk","keeler","p","любовь"],["mccoy","keeler","p","спасла его"],["spock","leila","p","былая любовь"],
+ ["kirk","lester","p","бывшая любовь"],["kirk","miramanee","p","брак"],["kirk","elaan","p","роковое влечение"],
+ ["kirk","rayna","p","чувства"],["flint","rayna","p","создатель и воспитанница"],["pike","vina","p","иллюзорная любовь"],
+ ["mitchell","dehner","p","общая судьба"],["chapel","korby","p","невеста"],["charlie","rand","p","влюблённость"],
+ ["daystrom","m5","p","создатель"],["kirk","marlena","p","в зеркальной вселенной"],["spock","mspock","p","двойник"],
+ ["spock","surak","p","духовный образец"],["kirk","lincoln","p","восхищение"],["kirk","mitchell","p","старый друг"],
+ ["kirk","finney","p","старая дружба"],["spock","romcmdr","p","взаимная симпатия"],["seven","kirk","p","нежданный союз"],
+ ["pike","numberone","d","старпом Пайка"],["kirk","leslie","d","экипаж"],["kirk","kyle","d","транспортаторная"],["scotty","kyle","d","инженерная служба"],
+ ["tpring","stonn","p","выбор Т'Принг"],["spock","stonn","h","соперник"],["kirk","stone","d","трибунал"],["kirk","baris","d","охрана зерна"],["baris","koloth","h","клингоны у станции"],
+ ["korby","andrea","p","создатель"],["korby","ruk","d","страж и хозяин"],["kirk","ruk","h","нападение"],["kirk","andrea","h","двойник-андроид"],
+ ["kirk","cochrane","p","спасение"],["seven","roberta","d","напарница"],["kirk","lazarus","h","угроза реальности"],["kirk","miri","p","доверие"],["miri","rand","h","ревность"],
+ ["kirk","khan","h","противостояние"],["kirk","gorn","h","поединок на арене"],["kirk","trelane","h","«игры»"],
+ ["kirk","kor","h","клингонская оккупация"],["kirk","koloth","h","спор за станцию"],["kirk","kang","h","вражда, раздуваемая существом"],
+ ["kirk","romcap","h","дуэль капитанов"],["spock","romcmdr","h","шпионская операция"],["kirk","mudd","h","аферы"],
+ ["kirk","apollo","h","требует поклонения"],["kirk","nomad","h","зонд-убийца"],["kirk","m5","h","выключение М-5"],
+ ["kirk","landru","h","свержение"],["kirk","garth","h","бывший кумир"],["kirk","lester","h","захват тела"],
+ ["kirk","korby","h","андроид-двойник"],["kirk","charlie","h","борьба за корабль"],["kirk","mitchell","h","угроза"],
+ ["kirk","finney","h","ложное обвинение"],["kirk","tracey","h","нарушение директивы"],["kirk","cyrano","h","трибблы"],
+ ["pike","keeper","h","пленитель"],["koloth","cyrano","h","трибблы против клингонов"],["kor","spock","h","допрос"]
+];
+
+/* ===================== УТИЛИТЫ ===================== */
+const MON=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+const fmtDate=d=>{const [y,m,dd]=d.split("-");return +dd+" "+MON[+m-1]+" "+y};
+const STOPS=[[5.0,[166,58,44]],[6.4,[214,120,46]],[7.4,[227,192,74]],[8.3,[150,180,72]],[9.3,[52,150,84]]];
+function rc(v){
+  v=Math.max(5,Math.min(9.3,v));
+  for(let i=0;i<STOPS.length-1;i++){const [a,ca]=STOPS[i],[b,cb]=STOPS[i+1];
+    if(v<=b){const t=(v-a)/(b-a);return "rgb("+ca.map((x,k)=>Math.round(x+(cb[k]-x)*t)).join(",")+")";}}
+  return "rgb(52,150,84)";
+}
+const fx=v=>v.toFixed(1).replace(".",",");
+const avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const $=s=>document.querySelector(s);
+const tip=document.getElementById("tip");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ===================== ЗВУК ===================== */
+let soundOn=true, AC=null;
+function beep(f,d=.07,t0=0,type="sine",vol=.06){
+  if(!soundOn) return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+t0;
+    o.type=type;o.frequency.setValueAtTime(f,t);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+    o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d+.02);
+  }catch(e){}
+}
+const sfx={
+  ep:()=>{beep(880,.06);beep(1320,.09,.07)},
+  ch:()=>{beep(660,.06,0,"triangle");beep(990,.08,.07,"triangle")},
+  clear:()=>{beep(520,.08,0,"square",.03);beep(390,.1,.08,"square",.03)},
+  ui:()=>beep(1760,.04,0,"sine",.04)
+};
+$("#sound").onclick=()=>{soundOn=!soundOn;$("#sound").textContent="♪ Звук: "+(soundOn?"вкл":"выкл");$("#sound").classList.toggle("red",soundOn);if(soundOn){beep(600,.05);beep(900,.05,.06);beep(1350,.07,.12)}};
+
+/* ===================== ШАПКА ===================== */
+(function(){
+  const rs=EP.map(e=>e.r), best=EP.reduce((a,b)=>b.r>a.r?b:a), worst=EP.reduce((a,b)=>b.r<a.r?b:a);
+  const A=avg(rs);
+  $("#stats").innerHTML=[
+    ["79","серий",""],
+    [fx(A),"средний рейтинг",rc(A)],
+    [fx(best.r),"лучшая: «"+best.ru+"»",rc(best.r)],
+    [fx(worst.r),"худшая: «"+worst.ru+"»",rc(worst.r)],
+    ["≈364 тыс.","голосов IMDb всего, ≈4,6 тыс. на серию",""]
+  ].map(([b,t,c])=>`<span class="stat"><b style="background:${c||"var(--cream)"}">${b}</b>${esc(t)}</span>`).join("");
+  $("#grad").style.background="linear-gradient(90deg,"+STOPS.map(s=>rc(s[0])).join(",")+")";
+})();
+
+/* ===================== ТЕПЛОВАЯ КАРТА ===================== */
+const state={ep:null,ch:null,layer:""};
+const hm=$("#hm");
+(function build(){
+  let h='<div></div>';
+  for(let e=1;e<=29;e++) h+=`<div class="cl">${e}</div>`;
+  for(let s=1;s<=3;s++){
+    const se=EP.filter(x=>x.s===s);
+    h+=`<div class="rl">Сезон ${s}<small>ср. ${fx(avg(se.map(x=>x.r)))}</small></div>`;
+    for(let e=1;e<=29;e++){
+      const x=se.find(q=>q.e===e);
+      if(!x){h+='<div class="cell empty"></div>';continue}
+      const dark=x.r>=6.9&&x.r<=8.1;
+      h+=`<button class="cell" data-id="${x.id}" style="background:${rc(x.r)};color:${dark?"#1a1405":"#fff"}" aria-label="S${s}E${e} ${esc(x.ru)}, ${x.r}">${fx(x.r)}</button>`;
+    }
+  }
+  hm.innerHTML=h;
+  hm.querySelectorAll(".cell[data-id]").forEach(b=>{
+    b.addEventListener("click",()=>selectEp(b.dataset.id));
+    b.addEventListener("mouseenter",ev=>showTip(ev,`<b>${b.dataset.id.replace("-"," · ")}</b> ${esc(EPI[b.dataset.id].ru)}<br><span style="color:#8b93a3">${esc(EPI[b.dataset.id].en)}</span> · <b>${EPI[b.dataset.id].r}</b>`));
+    b.addEventListener("mousemove",moveTip);b.addEventListener("mouseleave",hideTip);
+  });
+  // слои
+  let o='<option value="">Все серии</option>';
+  for(const [g,items] of Object.entries(LAYERS)){
+    o+=`<optgroup label="${g}">`;
+    for(const [k,[name,list]] of Object.entries(items)) o+=`<option value="${k}">${name} (${list.length})</option>`;
+    o+='</optgroup>';
+  }
+  $("#layer").innerHTML=o;
+  $("#layer").onchange=e=>{state.layer=e.target.value;sfx.ui();paint()};
+})();
+function layerList(k){for(const g of Object.values(LAYERS)) if(g[k]) return g[k];return null}
+function epTags(id){const t=[];for(const g of Object.values(LAYERS))for(const [n,l] of Object.values(g)) if(l.includes(id)) t.push(n);return t}
+
+function paint(){
+  const L=state.layer?layerList(state.layer):null;
+  const chEps=state.ch?new Set(CHI[state.ch].eps):null;
+  hm.querySelectorAll(".cell[data-id]").forEach(b=>{
+    const id=b.dataset.id;
+    let dim=false;
+    if(L && !L[1].includes(id)) dim=true;
+    if(chEps && !chEps.has(id)) dim=true;
+    b.classList.toggle("dim",dim);
+    b.classList.toggle("mark",!!chEps&&chEps.has(id)&&!CHI[state.ch].approx);
+    b.classList.toggle("sel",state.ep===id);
+  });
+  if(L){const rs=L[1].map(i=>EPI[i].r);$("#layerInfo").textContent=`${L[1].length} сер., средний рейтинг ${fx(avg(rs))}`}
+  else $("#layerInfo").textContent="";
+  graphHighlight();
+}
+
+/* ===================== КАРТОЧКА СЕРИИ ===================== */
+function chip(c){const col=FAC[c.fac][1];return `<button class="chip" data-ch="${c.id}"><span class="dot" style="background:${col}"></span>${esc(c.ru)}${c.approx?" ≈":""}</button>`}
+function epChip(id){const e=EPI[id];return `<button class="chip" data-ep="${id}"><span class="dot" style="background:${rc(e.r)}"></span>${id} ${esc(e.ru)} · ${fx(e.r)}</button>`}
+function wireChips(root){
+  root.querySelectorAll("[data-ch]").forEach(b=>b.onclick=()=>selectCh(b.dataset.ch));
+  root.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>selectEp(b.dataset.ep));
+}
+function selectEp(id){
+  state.ep=(state.ep===id)?null:id;
+  if(state.ep){state.ch=null;renderCh();sfx.ep()} else sfx.clear();
+  renderEp();paint();
+}
+function renderEp(){
+  const box=$("#epCard");
+  if(!state.ep){box.innerHTML='<p class="empty">Выберите серию на карте — здесь появятся рейтинг, создатели, звёздная дата, сюжет и персонажи.</p>';return}
+  const e=EPI[state.ep];
+  const rank=[...EP].sort((a,b)=>b.r-a.r).findIndex(x=>x.id===e.id)+1;
+  const crew=CH.filter(c=>c.approx&&c.eps.includes(e.id));
+  const guests=CH.filter(c=>!c.approx&&c.eps.includes(e.id));
+  const tags=epTags(e.id);
+  box.innerHTML=`
+    <div class="code">СЕЗОН ${e.s} · СЕРИЯ ${e.e} · №${e.n} В ПОКАЗЕ</div>
+    <h3>${esc(e.ru)}</h3><div class="en">${esc(e.en)}</div>
+    <div><span class="big" style="background:${rc(e.r)}">${fx(e.r)}</span> <span class="note">место ${rank} из 79</span></div>
+    <dl class="meta">
+      <dt>Премьера</dt><dd>${fmtDate(e.date)}, NBC</dd>
+      <dt>Режиссёр</dt><dd>${esc(e.dir)}</dd>
+      <dt>Сценарий</dt><dd>${esc(e.wr)}</dd>
+      <dt>Звёздная дата</dt><dd class="mono">${esc(e.sd==="—"?"не названа":e.sd)}</dd>
+    </dl>
+    <p style="margin:0">${esc(e.syn)}</p>
+    ${tags.length?`<div class="tags">${tags.map(t=>`<span class="tg">${esc(t)}</span>`).join("")}</div>`:""}
+    ${guests.length?`<div class="lbl">Ключевые персонажи серии</div><div class="chips">${guests.map(chip).join("")}</div>`:""}
+    <div class="lbl">Экипаж (по составу сезона ≈)</div><div class="chips">${crew.map(chip).join("")}</div>`;
+  wireChips(box);
+}
+
+/* ===================== СЕЗОНЫ И ТОПЫ ===================== */
+(function(){
+  let h="";
+  for(let s=1;s<=3;s++){
+    const se=EP.filter(x=>x.s===s), a=avg(se.map(x=>x.r));
+    const b=se.reduce((p,q)=>q.r>p.r?q:p), w=se.reduce((p,q)=>q.r<p.r?q:p);
+    const pct=((a-5)/(9.3-5))*100;
+    h+=`<div class="sbar"><div class="row"><b>Сезон ${s} · ${se[0].date.slice(0,4)}–${se.at(-1).date.slice(0,4)}</b><span class="mono">${fx(a)}</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${rc(a)}"></div></div>
+      <div class="ex">лучшая: <a href="#" data-ep="${b.id}" style="color:inherit">${esc(b.ru)} (${fx(b.r)})</a> · худшая: <a href="#" data-ep="${w.id}" style="color:inherit">${esc(w.ru)} (${fx(w.r)})</a></div></div>`;
+  }
+  h+='<p class="note">Шкала полосы: от 5,0 до 9,3.</p>';
+  $("#seasons").innerHTML=h;
+  $("#seasons").querySelectorAll("[data-ep]").forEach(a=>a.onclick=ev=>{ev.preventDefault();selectEp(a.dataset.ep);$("#heat").scrollIntoView({behavior:"smooth"})});
+  const sorted=[...EP].sort((a,b)=>b.r-a.r||a.n-b.n);
+  const li=(e,i)=>`<li data-ep="${e.id}"><span class="n">${i+1}</span><span class="rt" style="background:${rc(e.r)}">${fx(e.r)}</span><span class="t" title="${esc(e.en)}">${esc(e.ru)}</span><span class="c">${e.id}</span></li>`;
+  $("#top").innerHTML=sorted.slice(0,10).map(li).join("");
+  $("#bottom").innerHTML=sorted.slice(-10).reverse().map(li).join("");
+  document.querySelectorAll(".list li").forEach(l=>l.onclick=()=>{selectEp(l.dataset.ep);$("#heat").scrollIntoView({behavior:"smooth"})});
+})();
+
+/* ===================== ГРАФ ===================== */
+const ETYPE={d:["Служебные","#e3b341",""],p:["Личные и семейные","#5b8fd1","6 4"],h:["Враждебные","#d0453a",""],s:["Общие эпизоды","#8b93a3","2 4"]};
+const filt={d:true,p:true,h:true,s:true,t0:true,t1:true,t2:true};
+(function(){
+  let h="";
+  for(const [k,[n,c,da]] of Object.entries(ETYPE)) h+=`<label class="fl"><input type="checkbox" data-f="${k}" checked><span class="sw" style="background:${c};${da?"background:repeating-linear-gradient(90deg,"+c+" 0 4px,transparent 4px 7px)":""}"></span>${n}</label>`;
+  TIER.forEach((n,i)=>h+=`<label class="fl"><input type="checkbox" data-f="t${i}" checked>${n}</label>`);
+  $("#filters").innerHTML=h;
+  $("#filters").querySelectorAll("input").forEach(i=>i.onchange=()=>{filt[i.dataset.f]=i.checked;sfx.ui();applyFilters()});
+})();
+
+// общие эпизоды: внутри экипажа и между гостями/повторяющимися (без пары экипаж—гость)
+const SHARED=[];
+for(let i=0;i<CH.length;i++)for(let j=i+1;j<CH.length;j++){
+  const a=CH[i],b=CH[j];
+  if(a.approx!==b.approx) continue;
+  const n=a.eps.filter(x=>b.eps.includes(x)).length;
+  if(n>0) SHARED.push({source:a.id,target:b.id,t:"s",n,label:n+" общ. сер."});
+}
+
+let svg,gRoot,linkSel,nodeSel,zoom,sim,W=800,H=640;
+const nodes=[{id:"ship",ship:true,tier:-1},...CH.map(c=>({...c}))];
+const typed=EDGES.map(([a,b,t,l])=>({source:a,target:b,t,label:l}));
+const anchors=CH.filter(c=>c.tier===0).map(c=>({source:"ship",target:c.id,t:"a"}));
+const allLinks=[...anchors,...typed,...SHARED];
+const R=d=>d.ship?36:d.tier===0?24:d.tier===1?19:16;
+
+(function initGraph(){
+  const box=$("#graph");W=box.clientWidth;H=box.clientHeight;
+  svg=d3.select(box).append("svg").attr("viewBox",[0,0,W,H]);
+  const defs=svg.append("defs");
+  nodes.forEach(d=>{ if(!d.ship) defs.append("clipPath").attr("id","cp-"+d.id).append("circle").attr("r",R(d)-2); });
+  gRoot=svg.append("g");
+  zoom=d3.zoom().scaleExtent([.3,4]).on("zoom",e=>gRoot.attr("transform",e.transform));
+  svg.call(zoom).on("dblclick.zoom",null);
+  // орбиты
+  const orb=gRoot.append("g").attr("pointer-events","none");
+  [120,215,330].forEach((r,i)=>orb.append("circle").attr("cx",W/2).attr("cy",H/2).attr("r",r).attr("fill","none").attr("stroke",["#a9f0c455","#a9f0c433","#a9f0c422"][i]).attr("stroke-width",1.5).attr("stroke-dasharray",i===2?"3 6":null));
+  const lg=gRoot.append("g");
+  linkSel=lg.selectAll("line").data(allLinks).join("line").attr("class","link")
+    .attr("stroke",d=>d.t==="a"?"#a9f0c444":ETYPE[d.t][1])
+    .attr("stroke-width",d=>d.t==="s"?Math.min(.6+Math.sqrt(d.n)*.35,4):d.t==="a"?1:1.8)
+    .attr("stroke-opacity",d=>d.t==="s"?.18:d.t==="a"?.6:.85)
+    .attr("stroke-dasharray",d=>d.t==="a"?null:ETYPE[d.t][2]||null);
+  const ng=gRoot.append("g");
+  nodeSel=ng.selectAll("g").data(nodes).join("g").attr("class","node");
+  // корабль
+  const ship=nodeSel.filter(d=>d.ship);
+  ship.append("circle").attr("r",36).attr("fill","#06140f").attr("stroke","#f2a51c").attr("stroke-width",3);
+  ship.append("ellipse").attr("rx",22).attr("ry",8).attr("fill","none").attr("stroke","#a9f0c4").attr("stroke-width",2);
+  ship.append("circle").attr("r",9).attr("fill","#a9f0c4").attr("opacity",.8);
+  ship.append("text").attr("class","lab").attr("y",52).attr("text-anchor","middle").style("font-family","Unbounded").text("ЭНТЕРПРАЙЗ");
+  ship.append("text").attr("class","lab").attr("y",-42).attr("text-anchor","middle").style("font-family","PT Mono").style("font-size","10px").text("NCC-1701");
+  // персонажи
+  const ch=nodeSel.filter(d=>!d.ship);
+  ch.append("circle").attr("class","halo").attr("r",d=>R(d)+5).attr("fill","none").attr("stroke","#fff").attr("stroke-width",2).attr("opacity",0);
+  ch.append("circle").attr("r",d=>R(d)).attr("fill","#06140f").attr("stroke",d=>FAC[d.fac][1]).attr("stroke-width",3);
+  ch.append("text").attr("class","ini").attr("text-anchor","middle").attr("dy","0.36em")
+    .attr("font-size",d=>d.tier===0?13:10).attr("fill",d=>FAC[d.fac][1]).text(d=>initials(d.ru));
+  ch.append("image").attr("class","ph").attr("clip-path",d=>`url(#cp-${d.id})`)
+    .attr("x",d=>-R(d)+2).attr("y",d=>-R(d)+2).attr("width",d=>2*R(d)-4).attr("height",d=>2*R(d)-4)
+    .attr("preserveAspectRatio","xMidYMid slice").style("display","none");
+  ch.append("text").attr("class","lab").attr("text-anchor","middle").attr("y",d=>R(d)+14).text(d=>d.ru);
+  ch.on("click",(e,d)=>{e.stopPropagation();selectCh(d.id)})
+    .on("mouseenter",(e,d)=>showTip(e,`<b>${esc(d.full)}</b><br>${esc(d.role)}<br><span style="color:${FAC[d.fac][1]}">${FAC[d.fac][0]}</span>`))
+    .on("mousemove",moveTip).on("mouseleave",hideTip);
+  linkSel.filter(d=>d.t!=="a").on("mouseenter",(e,d)=>showTip(e,`${esc(nm(d.source))} — ${esc(nm(d.target))}<br><span style="color:${ETYPE[d.t][1]}">${ETYPE[d.t][0]}</span>: ${esc(d.label)}`)).on("mousemove",moveTip).on("mouseleave",hideTip);
+  svg.on("click",()=>{if(state.ch){state.ch=null;renderCh();paint();sfx.clear()}});
+  ch.call(d3.drag()
+    .on("start",(e,d)=>{if(!e.active)sim.alphaTarget(.25).restart();d.fx=d.x;d.fy=d.y})
+    .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y})
+    .on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null}));
+
+  const shipNode=nodes[0];shipNode.fx=W/2;shipNode.fy=H/2;
+  const ring=d=>d.ship?0:d.tier===0?120:d.tier===1?215:330;
+  sim=d3.forceSimulation(nodes)
+    .force("link",d3.forceLink([...anchors,...typed]).id(d=>d.id).distance(l=>l.t==="a"?110:l.t==="d"?120:150).strength(l=>l.t==="a"?.6:.05))
+    .force("charge",d3.forceManyBody().strength(-160))
+    .force("radial",d3.forceRadial(ring,W/2,H/2).strength(.9))
+    .force("collide",d3.forceCollide(d=>R(d)+12))
+    .on("tick",()=>{
+      linkSel.attr("x1",d=>pos(d.source).x).attr("y1",d=>pos(d.source).y).attr("x2",d=>pos(d.target).x).attr("y2",d=>pos(d.target).y);
+      nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`);
+    });
+  // общие эпизоды не участвуют в силах — разрешаем их концы вручную
+  const byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
+  SHARED.forEach(l=>{l.source=byId[l.source];l.target=byId[l.target]});
+  // масштаб под маленький экран
+  const k=Math.min(1,Math.min(W,H)/760);
+  svg.call(zoom.transform,d3.zoomIdentity.translate(W/2*(1-k),H/2*(1-k)).scale(k));
+  $("#zin").onclick=()=>{sfx.ui();svg.transition().duration(250).call(zoom.scaleBy,1.3)};
+  $("#zout").onclick=()=>{sfx.ui();svg.transition().duration(250).call(zoom.scaleBy,1/1.3)};
+  $("#zreset").onclick=()=>{sfx.ui();svg.transition().duration(350).call(zoom.transform,d3.zoomIdentity.translate(W/2*(1-k),H/2*(1-k)).scale(k))};
+  loadPhotos();
+})();
+function pos(n){return typeof n==="object"?n:{x:0,y:0}}
+function nm(n){const id=typeof n==="object"?n.id:n;return id==="ship"?"Энтерпрайз":CHI[id].full}
+function initials(s){const w=s.replace(/[«»'’]/g,"").split(/[\s\-.]+/).filter(Boolean);return (w.length>1?w[0][0]+w[1][0]:w[0].slice(0,2)).toUpperCase()}
+
+// фото: photos/<id>.jpg|jpeg|png|webp — если файла нет, остаётся бейдж
+function loadPhotos(){
+  nodeSel.filter(d=>!d.ship).each(function(d){
+    const g=d3.select(this),exts=["jpg","jpeg","png","webp"];let i=0;
+    const tryNext=()=>{ if(i>=exts.length) return; const url=`photos/${d.id}.${exts[i++]}`; const im=new Image();
+      im.onload=()=>{g.select("image.ph").attr("href",url).style("display",null);g.select("text.ini").style("display","none");d.photo=url;};
+      im.onerror=tryNext; im.src=url; };
+    tryNext();
+  });
+}
+
+function visibleNode(d){return d.ship||filt["t"+d.tier]}
+function applyFilters(){
+  nodeSel.style("display",d=>visibleNode(d)?null:"none");
+  linkSel.style("display",d=>{
+    const s=pos(d.source),t=pos(d.target);
+    if(!visibleNode(s)||!visibleNode(t)) return "none";
+    if(d.t==="a") return null;
+    return filt[d.t]?null:"none";
+  });
+}
+function graphHighlight(){
+  if(!nodeSel) return;
+  let on=null;
+  if(state.ch){
+    on=new Set([state.ch]);
+    allLinks.forEach(l=>{if(l.t==="a"||l.t==="s")return;const a=pos(l.source).id,b=pos(l.target).id;if(a===state.ch)on.add(b);if(b===state.ch)on.add(a)});
+  } else if(state.ep){
+    on=new Set(CH.filter(c=>c.eps.includes(state.ep)).map(c=>c.id));on.add("ship");
+  }
+  nodeSel.classed("faded",d=>on?!on.has(d.id):false);
+  nodeSel.select("circle.halo").attr("opacity",d=>(state.ch===d.id)?1:0);
+  linkSel.classed("faded",d=>{
+    if(!on) return false;
+    const a=pos(d.source).id,b=pos(d.target).id;
+    if(state.ch) return !(a===state.ch||b===state.ch);
+    return !(on.has(a)&&on.has(b));
+  });
+}
+
+/* ===================== КАРТОЧКА ПЕРСОНАЖА ===================== */
+function selectCh(id){
+  state.ch=(state.ch===id)?null:id;
+  if(state.ch){state.ep=null;renderEp();sfx.ch()} else sfx.clear();
+  renderCh();paint();
+}
+function renderCh(){
+  const box=$("#chCard");
+  if(!state.ch){box.innerHTML='<p class="empty">Нажмите на персонажа: его серии подсветятся на тепловой карте, а здесь появятся связи и средний рейтинг его серий. Узлы можно перетаскивать, граф — масштабировать.</p>';return}
+  const c=CHI[state.ch], rs=c.eps.map(i=>EPI[i].r), a=avg(rs);
+  const best=c.eps.map(i=>EPI[i]).sort((x,y)=>y.r-x.r)[0];
+  const rel=EDGES.filter(e=>e[0]===c.id||e[1]===c.id).map(e=>{const o=e[0]===c.id?e[1]:e[0];return {o,t:e[2],l:e[3]}});
+  const col=FAC[c.fac][1];
+  const ph=nodes.find(n=>n.id===c.id).photo;
+  box.innerHTML=`
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:64px;height:64px;border-radius:50%;border:3px solid ${col};flex:none;display:flex;align-items:center;justify-content:center;background:#06140f ${ph?`url('${ph}') center/cover`:""};font-family:Unbounded;color:${col};font-size:20px">${ph?"":initials(c.ru)}</div>
+      <div><div class="code">${TIER[c.tier].toUpperCase()}</div><h3>${esc(c.full)}</h3><div class="en">${esc(c.en)}</div></div>
+    </div>
+    <dl class="meta" style="margin-top:12px">
+      <dt>Роль</dt><dd>${esc(c.role)}</dd>
+      <dt>Группа</dt><dd><span style="color:${col}">●</span> ${FAC[c.fac][0]}</dd>
+      <dt>Серий</dt><dd>${c.eps.length}${c.approx?" ≈ (по составу сезона)":""}</dd>
+      <dt>Ср. рейтинг</dt><dd><b style="background:${rc(a)};color:#111;border-radius:6px;padding:0 6px">${fx(a)}</b> ${c.approx?"":"· лучшая: "+esc(best.ru)}</dd>
+    </dl>
+    ${rel.length?`<div class="lbl">Связи</div><div class="chips">${rel.map(r=>`<button class="chip" data-ch="${r.o}"><span class="dot" style="background:${ETYPE[r.t][1]}"></span>${esc(CHI[r.o].ru)} — ${esc(r.l)}</button>`).join("")}</div>`:""}
+    ${c.approx?"":`<div class="lbl">Серии</div><div class="chips">${c.eps.map(epChip).join("")}</div>`}`;
+  wireChips(box);
+}
+
+/* ===================== ПРОЧЕЕ ===================== */
+$("#clear").onclick=()=>{state.ep=null;state.ch=null;state.layer="";$("#layer").value="";renderEp();renderCh();paint();sfx.clear()};
+function showTip(e,h){tip.innerHTML=h;tip.style.display="block";moveTip(e)}
+function moveTip(e){const x=Math.min(e.clientX+14,innerWidth-270);tip.style.left=x+"px";tip.style.top=(e.clientY+14)+"px"}
+function hideTip(){tip.style.display="none"}
+window.addEventListener("scroll",hideTip,{passive:true});
+applyFilters();paint();
+</script>
+</body>
+</html>
